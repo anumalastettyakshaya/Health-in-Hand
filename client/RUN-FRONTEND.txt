@@ -1,0 +1,7 @@
+H∞H — Health in Hand frontend
+1. Start MongoDB.
+2. In server folder: npm install, then npm run dev.
+3. Open this frontend folder in VS Code and run index.html with Live Server.
+4. If Live Server uses a different port/origin, update server/.env CLIENT_ORIGIN to match and restart backend.
+5. Create an account, log in, add a record, generate access, then test doctor access using a second doctor account.
+Use dummy data only.
