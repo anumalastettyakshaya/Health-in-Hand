@@ -1,4 +1,39 @@
+
+# Dependencies
 node_modules/
+server/node_modules/
+
+# Environment variables and secrets
 .env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+
+# Uploaded medical records and files
 uploads/*
 !uploads/.gitkeep
+server/uploads/*
+!server/uploads/.gitkeep
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor settings
+.vscode/
+
+# Build outputs
+dist/
+build/
+
+# Temporary files
+*.tmp
+*.temp
