@@ -4,4 +4,4 @@
  * https://YOUR-BACKEND-SERVICE.onrender.com/api
  * Keep /api at the end. This file contains no secrets.
  */
-window.HIH_API_BASE = "";
+window.HIH_API_BASE = "https://health-in-hand-api.onrender.com/api";
