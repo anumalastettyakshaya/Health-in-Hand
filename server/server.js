@@ -12,10 +12,14 @@ const consentRoutes = require("./routes/consentRoutes");
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_ORIGIN || "*").split(",").map(origin => origin.trim()).filter(Boolean);
+const defaultOrigins = process.env.NODE_ENV === "production"
+  ? []
+  : ["http://127.0.0.1:5500", "http://localhost:5500"];
+const allowedOrigins = (process.env.CLIENT_ORIGIN || "").split(",").map(origin => origin.trim()).filter(Boolean);
+const corsOrigins = allowedOrigins.length ? allowedOrigins : defaultOrigins;
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) return callback(null, true);
+    if (!origin || corsOrigins.includes("*") || corsOrigins.includes(origin)) return callback(null, true);
     // Permit local development frontends on localhost/127.0.0.1 regardless of Live Server port.
     try { const parsed = new URL(origin); if (["localhost", "127.0.0.1"].includes(parsed.hostname)) return callback(null, true); } catch (_) {}
     return callback(new Error("Origin is not allowed by CLIENT_ORIGIN."));
@@ -60,8 +64,14 @@ const PORT = process.env.PORT || 5000;
 
 async function startServer() {
   try {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+      throw new Error("JWT_SECRET must be configured with at least 32 characters.");
+    }
+    if (process.env.NODE_ENV === "production" && corsOrigins.length === 0) {
+      throw new Error("CLIENT_ORIGIN must contain the deployed frontend origin in production.");
+    }
     await connectDB();
-    app.listen(PORT, () => {
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`Health in Hand API running at http://localhost:${PORT}`);
     });
   } catch (error) {

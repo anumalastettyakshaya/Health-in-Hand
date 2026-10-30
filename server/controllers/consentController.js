@@ -85,9 +85,23 @@ exports.verifyConsent = async (req, res, next) => {
     }
     const rawToken = req.params.token;
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-    const consent = await Consent.findOne({ tokenHash }).select("+tokenHash");
-    if (!consent || consent.revokedAt || consent.expiresAt <= new Date()) {
-      return res.status(403).json({ valid: false, message: "Token is invalid, expired, or revoked." });
+    const now = new Date();
+
+    // The first doctor to verify a patient-issued token is bound to that grant.
+    // Further verification is allowed only for that same doctor.
+    const consent = await Consent.findOneAndUpdate(
+      {
+        tokenHash,
+        revokedAt: null,
+        expiresAt: { $gt: now },
+        $or: [{ doctorId: null }, { doctorId: req.user._id }]
+      },
+      { $set: { doctorId: req.user._id } },
+      { new: true }
+    ).select("expiresAt doctorId");
+
+    if (!consent) {
+      return res.status(403).json({ valid: false, message: "Token is invalid, expired, revoked, or already assigned to another doctor." });
     }
     res.json({ valid: true, expiresAt: consent.expiresAt });
   } catch (error) {

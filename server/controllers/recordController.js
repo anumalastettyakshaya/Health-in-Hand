@@ -129,10 +129,15 @@ exports.getSharedRecords = async (req, res, next) => {
     }
 
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-    const consent = await Consent.findOne({ tokenHash }).select("+tokenHash");
+    const consent = await Consent.findOne({
+      tokenHash,
+      doctorId: req.user._id,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() }
+    }).select("+tokenHash");
 
-    if (!consent || consent.revokedAt || consent.expiresAt <= new Date()) {
-      return res.status(403).json({ message: "Access token is invalid, expired, or revoked." });
+    if (!consent) {
+      return res.status(403).json({ message: "Access token is invalid, expired, revoked, or assigned to another doctor. Verify the token again using the same doctor account." });
     }
 
     const recordFilter = { patientId: consent.patientId, familyProfileId: consent.familyProfileId || null };
@@ -202,8 +207,13 @@ exports.openRecordFile = async (req, res, next) => {
       const rawToken = req.headers["x-access-token"];
       if (rawToken) {
         const hash = crypto.createHash("sha256").update(rawToken).digest("hex");
-        const consent = await Consent.findOne({ tokenHash: hash });
-        allowed = !!consent && !consent.revokedAt && consent.expiresAt > new Date() && String(consent.patientId) === String(record.patientId) && (!consent.recordIds.length || consent.recordIds.some(id => String(id) === String(record._id)));
+        const consent = await Consent.findOne({
+          tokenHash: hash,
+          doctorId: req.user._id,
+          revokedAt: null,
+          expiresAt: { $gt: new Date() }
+        });
+        allowed = !!consent && String(consent.patientId) === String(record.patientId) && (!consent.recordIds.length || consent.recordIds.some(id => String(id) === String(record._id)));
       }
     }
     if (!allowed) return res.status(403).json({ message: "You do not have access to this file." });
