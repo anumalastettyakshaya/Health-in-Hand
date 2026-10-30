@@ -1,52 +1,48 @@
 # H∞H — Health in Hand
 
 ## Project structure
-- `client/` — responsive website (HTML, CSS, JavaScript)
-- `server/` — Express API, MongoDB models, authentication, consent, record upload and family-profile routes
+- `client/` — static HTML/CSS/JavaScript frontend (deploy this folder to Netlify).
+- `server/` — Express API, MongoDB models, authentication, consent, record upload and family-profile routes.
+- `render.yaml` — Render web-service blueprint for deploying the API.
 
-## Run the backend
+## Important: Netlify hosts only the frontend
+The Netlify site is not the Express API and does not run MongoDB. The frontend and backend must use one shared, internet-reachable MongoDB database. A local MongoDB address such as `127.0.0.1` works only on the computer running it.
+
+## Deploy the backend (one-time setup)
+1. Create a MongoDB Atlas database and obtain its connection URI. In Atlas, create a database user and allow network access for your hosting provider. Keep the URI private.
+2. Push this project to the GitHub repository.
+3. In Render, create a new **Blueprint** from that GitHub repository and approve the `render.yaml` service. Alternatively, create a Web Service with root directory `server`, build command `npm install`, and start command `npm start`.
+4. In the backend service's environment settings, set:
+   - `MONGODB_URI` — your Atlas connection URI (include the database name, e.g. `health_in_hand`).
+   - `JWT_SECRET` — a long random secret (at least 32 characters).
+   - `CLIENT_ORIGIN` — the exact Netlify origin, e.g. `https://heath-in-hand.netlify.app` (no trailing slash).
+   - `NODE_ENV` — `production`.
+5. Deploy. Open `https://YOUR-BACKEND.onrender.com/api/health`. It should return JSON with status `ok`.
+6. Edit `client/js/config.js` and set `window.HIH_API_BASE` to the backend URL ending in `/api`, for example `https://YOUR-BACKEND.onrender.com/api`. Commit and push. Netlify should redeploy the frontend.
+
+Do not put MongoDB credentials or JWT secrets in `client/`, `config.js`, or any frontend file. Only the public backend URL belongs in `client/js/config.js`.
+
+## Run locally
 1. Install Node.js LTS and MongoDB.
-2. Open a terminal in `server/`.
-3. Run `npm install`.
-4. Copy `.env.example` to `.env` and set `MONGODB_URI` and a long random `JWT_SECRET`.
-5. Run `npm start`. The API defaults to `http://localhost:5000`.
+2. In `server/`, run `npm install`.
+3. Copy `server/.env.example` to `server/.env` and set `MONGODB_URI` and a random `JWT_SECRET` of at least 32 characters.
+4. Run `npm run dev` in `server/`.
+5. Open `client/index.html` with VS Code Live Server. Local frontend development uses `http://localhost:5000/api`.
 
-## Run the website
-Open `client/index.html` using VS Code Live Server. The API base defaults to `http://localhost:5000/api`. The backend must be running for login, records, uploads, consent, and family profiles.
+## Consent and QR flow
+- Patient creates a time-limited access token; only its SHA-256 hash is stored in MongoDB.
+- The first doctor account to verify a token is bound to that consent. A different doctor cannot reuse it.
+- The doctor must use the same account for verification and shared-record access.
+- Expiry and revocation are checked by the backend on each shared-record request.
+- Patient and doctor devices must connect to the same deployed API and database.
 
-## Current behavior
-- Purple/violet visual theme, light/dark mode, and responsive hamburger navigation.
-- Medical record upload with PDF/JPG/PNG attachment, protected file opening, edit/delete for the record creator, and backend ownership checks.
-- Time-limited QR sharing; the raw token is not shown as a separate string. The QR/share link references the token. Doctors must sign in to verify access.
-- Family profile creation, selection, and deletion. Medical records are scoped to the selected family profile.
+## Safety and prototype limitations
+This is a student prototype, not a production medical-record system. Use dummy data only. Doctor credential checks, production-grade file storage, malware scanning, backup/restore, security review, and compliance work are still required. Uploaded files currently use local disk storage on the backend host; ephemeral hosting filesystems may not persist uploads across redeploys. The MongoDB database stores record metadata, not the uploaded file bytes. Use managed object storage before real-world use.
 
-## Important limitations
-This is a development prototype, not a production medical-record system. Family profiles can be managed under the account, but converting a dependent profile into a fully independent login account is not implemented yet. Doctor credential checks, deployment hardening, audit review, backups, malware scanning, and production-grade file storage are also not implemented. Use dummy data until security and privacy requirements are reviewed.
+## Troubleshooting
+- `Cannot reach backend`: check the backend service is running and `client/js/config.js` contains its public HTTPS URL ending in `/api`.
+- CORS error: make `CLIENT_ORIGIN` exactly match `https://heath-in-hand.netlify.app` and redeploy/restart the API.
+- Data missing on a second device: both devices must use the same backend URL and the same Atlas database.
+- `/api/health` returning `ok` confirms the API is running; it does not by itself prove the database has the correct data.
 
-## Cross-device setup and testing
-
-- Start MongoDB and set `MONGODB_URI`, `JWT_SECRET`, and `CLIENT_ORIGIN` in `server/.env`.
-- Run `npm install` once in `server/`, then `npm run dev`.
-- Serve `client/index.html` using Live Server.
-- For two devices on the same Wi-Fi, open the frontend using the development computer's LAN IP (not `localhost`) and ensure port 5000 is reachable through the firewall. The API client uses the current hostname with port 5000 by default for LAN testing.
-- If the frontend and backend are hosted on different domains, set the frontend API base in the browser console before reloading: `localStorage.setItem('hih_api_base', 'https://YOUR-BACKEND-DOMAIN/api')`. Set `CLIENT_ORIGIN` to the exact deployed frontend origin and restart the backend.
-- The QR code contains the raw access token. If the QR scanner displays the token as text, copy it and paste it into the doctor's **Get token** page. The **Copy Access Token** button copies the same token.
-- Use dummy data only. Tokens expire and can be revoked; clearing a history list in the UI does not delete the backend audit trail.
-
-## Notes on the current prototype
-
-- Doctor access history is stored by the backend for shared-record views and doctor record actions. The logbook offers day/week/month/year/all filters.
-- Family profile records are separated using `familyProfileId`; family profile contact details no longer fall back to the main account's email/phone when blank.
-- Static HTML frontend changes and backend syntax have been checked, but this archive has not been end-to-end tested against a live MongoDB instance or a deployed multi-device environment. Configure the deployment API URL and CORS origin before publishing.
-
-
-## Accessing a patient token from another computer
-
-Patient and doctor devices must connect to the **same reachable backend and MongoDB database**. A frontend opened on each laptop with `localhost` points to that laptop, not the other device. For a local-network demo, run the backend on one computer, bind it to the network interface, allow port 5000 through the host firewall, and set the frontend API base in the browser before using the app:
-
-```js
-localStorage.setItem("hih_api_base", "http://YOUR-SERVER-LAN-IP:5000/api");
-location.reload();
-```
-
-Replace `YOUR-SERVER-LAN-IP` with the backend computer's LAN IP. For use over the internet, deploy the backend with HTTPS and a shared MongoDB database, then set `hih_api_base` to that deployed API URL on both devices. Do not use `localhost` as the API host on the doctor's laptop unless the backend is running on that same laptop. Access tokens are time-limited and can be revoked by the patient.
+Never commit `.env`, database credentials, JWT secrets, or real patient records. Use dummy data for demos.
